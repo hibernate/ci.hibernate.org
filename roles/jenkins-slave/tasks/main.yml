@@ -1,12 +1,14 @@
 ---
 
-# Additional packages required for some build
 - name: Extra packages required on slaves
   dnf:
     name: ['wget', 'jq', 'sed', 'java-11-openjdk-devel']
     state: present
   tags:
     - extra-packages
+
+- name: Create jenkins user
+  user: name=jenkins
 
 - name: Create Docker group
   group:
@@ -64,12 +66,7 @@
   tags:
     - jenkins
 
-- name: Add passwordless connection for jenkins
-  copy: src=authorized_keys dest=/home/jenkins/.ssh/authorized_keys mode=0600 owner=jenkins group=jenkins
-  tags:
-    - jenkins
-
-- name: Add Couchdb service 
+- name: Add Couchdb service
   copy: src=couchdb/docker-couchdb.service dest=/etc/systemd/system/ mode=0600 owner=root group=root
   tags:
     - couchdb
@@ -100,33 +97,6 @@
 # Some slaves need to run rsync on the master,
 # this will ensure master is added to the known_host
 # The ssh-keyscan approach (controversial!) is inspired from: http://hakunin.com/six-ansible-practices
-- name: Ensure cimaster is a known host
-  lineinfile:
-    dest: /home/jenkins/.ssh/known_hosts
-    state: present
-    create: yes
-    owner: jenkins
-    group: jenkins
-    mode: 0600
-    line: "{{ lookup('pipe', 'ssh-keyscan -t ecdsa ' + groups['cimaster'][0]) }}"
-    regexp: "^{{groups['cimaster'][0]}}"
-  tags:
-    - crosskeyauthentication
-    - create-known-hosts
-
-- name: Ensure ci.hibernate.org is a known host
-  lineinfile:
-    dest: /home/jenkins/.ssh/cihibernate-knownhosts
-    state: present
-    create: yes
-    owner: jenkins
-    group: jenkins
-    mode: 0600
-    line: "{{ lookup('pipe', 'ssh-keyscan -t ecdsa ci.hibernate.org') }}"
-    regexp: "^ci.hibernate.org"
-  tags:
-    - crosskeyauthentication
-
 - name: Ensure in.relation.to is a known host
   lineinfile:
     dest: /home/jenkins/.ssh/inrelationto-knownhosts
@@ -137,26 +107,28 @@
     mode: 0600
     line: "{{ lookup('pipe', 'ssh-keyscan -t ecdsa in.relation.to') }}"
     regexp: "^in.relation.to"
-  tags:
-    - crosskeyauthentication
 
-# Install packages required for web site build / Ruby environment
 - name: Web site build tool chain (GCC, headers etc.)
   dnf:
-    name: ['gcc', 'make', 'ruby-devel', 'gcc-c++', 'libxml2', 'libxml2-devel', 'libxslt', 'libxslt-devel', 'rubygem-nokogiri', 'findutils', 'git', 'ruby', 'rpm-build', 'tuned']
+    name: ['gcc', 'make', 'ruby-devel', 'gcc-c++', 'libxml2', 'libxml2-devel', 'libxslt', 'libxslt-devel', 'findutils', 'git', 'ruby', 'rpm-build', 'tuned']
     enablerepo: rhui-REGION-rhel-server-optional
     state: present
   tags:
     - websitegems
 
-# Gems required for web-site build
-- name: Install Rake
+- name: Install Rake for website build
   gem: name=rake state=latest user_install=yes
   become_user: jenkins
   tags:
     - websitegems
 
-- name: Install Bundler
+- name: Install Nokogiri for website build
+  gem: name=nokogiri state=latest user_install=yes
+  become_user: jenkins
+  tags:
+    - websitegems
+
+- name: Install Bundler for website build
   gem: name=bundler state=latest user_install=yes
   become_user: jenkins
   tags:
